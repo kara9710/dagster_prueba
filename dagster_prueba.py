@@ -1,9 +1,11 @@
-from dagster import job,sensor,RunRequest,op,schedule,asset
+#from multiprocessing import context
+import multiprocessing as mp
+from dagster import job,sensor,RunRequest,op,schedule,asset, get_dagster_logger
 import pandas as pd
 from pandas import DataFrame
 import mysql.connector
 from sqlalchemy import create_engine
-import os 
+import os
 
 def create_db():
     pwd = os.environ['DAGSTER_MYSQL_PASSWORD']
@@ -23,8 +25,8 @@ def get_path():
 
 
 #Nos traemos el dataframe del archivo
-def get_dataframe():
-    path=get_path()
+def get_dataframe(path):
+    #path=get_path()
     try:
         df= pd.read_excel(f'{path}',sheet_name='Matriz de adyacencia')
     except:
@@ -87,7 +89,7 @@ def to_sql_table(df):
 				.format(host=host, db=dbname, user=user, pw=password))
     
     # Convert dataframe to sql table                                   
-    df.to_sql('test_karen', engine, index=False, if_exists= 'replace')
+    df.to_sql('test_karen_123', engine, index=False, if_exists= 'replace')
 
 def to_sql_rel_table(df):
     password = os.environ['DAGSTER_MYSQL_PASSWORD']
@@ -101,12 +103,12 @@ def to_sql_rel_table(df):
     # Convert dataframe to sql table                                   
     df.to_sql('relations_table', engine, index=False, if_exists= 'replace')
 
-#@op(config_schema={'path': str})
-#def getting_path(context):
-#    path_ = context.op_config['path']
-#    print(path_)
-#    return path_
-
+@op(config_schema={"path": str})
+def getting_path(context):
+    path_ = context.op_config["path"]
+    
+    get_dagster_logger().info(f"{path_}!")
+    return path_
 
 ##Declaración de OPS y JOB
 #create database
@@ -115,25 +117,26 @@ def create_database():
     create_db()
 
 @op
-def update_sql_table():
-    to_sql_table(get_dataframe())
+def update_sql_table(path):
+    to_sql_table(get_dataframe(path))
  
 #Generar assets
 @asset
 def df_transform()-> DataFrame:
-   return manejo_de_datos(get_dataframe())
+   return manejo_de_datos(get_dataframe(getting_path))
 
 @asset
 def relations(df_transform:DataFrame):
-   return limpieza_tabla_actores(df_transform,get_path())
+   return limpieza_tabla_actores(df_transform,getting_path)
 
 @job
 def run_etl_job():
     """
     Generación del job para que cree y actualice la base de datos
     """
+    #### getting_path()
     create_database()
-    update_sql_table()
+    update_sql_table(getting_path())
 
 
 @sensor(job=run_etl_job)
@@ -142,6 +145,7 @@ def my_sensor():
     if should_run:
         yield RunRequest(run_key=None, run_config={})
 
+#Se genera el schedule para que corra diariamente
 @schedule(cron_schedule="0 8 * * *", job=run_etl_job, execution_timezone="America/Mexico_City")
 def etl_job_schedule():
     run_config= {}

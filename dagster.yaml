@@ -1,0 +1,37 @@
+# MySQL storage can be set using either credentials or a connection string.  This requires that the
+# `dagster-mysql` library be installed.
+# this config manually sets the MySQL credentials
+storage:
+  mysql:
+    mysql_db:
+      username: { DAGSTER_MYSQL_USERNAME }
+      password: { DAGSTER_MYSQL_PASSWORD }
+      hostname: { DAGSTER_MYSQL_HOSTNAME }
+      db_name: { DAGSTER_MYSQL_DB }
+      port: 3306
+
+
+# and this config grabs the database credentials from environment variables
+storage:
+  mysql:
+    mysql_db:
+      username:
+        env: DAGSTER_MYSQL_USERNAME
+      password:
+        env: DAGSTER_MYSQL_PASSWORD
+      hostname:
+        env: DAGSTER_MYSQL_HOSTNAME
+      db_name:
+        env: DAGSTER_MYSQL_DB
+      port: 3306
+
+
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+
+
+  # Allows opting out of Dagster collecting usage statistics.
+telemetry:
+  enabled: false
